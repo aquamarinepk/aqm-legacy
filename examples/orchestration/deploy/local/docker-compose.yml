@@ -1,0 +1,57 @@
+x-common-env: &common-env
+  SHARED_LOG_LEVEL: ${SHARED_LOG_LEVEL:-debug}
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: aqm-orchestration-mongodb
+    restart: unless-stopped
+    networks:
+      - internal
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${COMPOSE_MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${COMPOSE_MONGO_PASS:-password}
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping').ok", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  tasks:
+    build:
+      context: ../../..
+      dockerfile: examples/orchestration/services/tasks/Dockerfile
+    container_name: aqm-orchestration-tasks
+    restart: unless-stopped
+    env_file:
+      - ./env.sample
+    environment:
+      <<: *common-env
+    networks:
+      - internal
+      - public
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/healthz", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+networks:
+  internal:
+    driver: bridge
+  public:
+    driver: bridge
+
+volumes:
+  mongo-data:

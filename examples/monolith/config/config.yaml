@@ -1,0 +1,4 @@
+http:
+  port: "${TODO_HTTP_PORT}"
+log:
+  level: "debug"

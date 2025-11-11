@@ -1,0 +1,8 @@
+mongo:
+  uri: "mongodb://localhost:27017/tasks?authSource=admin"
+  database: "tasks"
+  collection: "tasks"
+http:
+  port: ":8082"
+log:
+  level: "debug"
