@@ -15,9 +15,12 @@ type StackOptions struct {
 	Logger              aqm.Logger
 	Metrics             aqm.Metrics
 	Errors              aqm.ErrorReporter
-	Timeout             time.Duration
+	TimeoutDuration     time.Duration // default 60s if 0
+	DisableTimeout      bool          // explicit opt-out
 	CompressLevel       int
 	AllowedContentTypes []string
+	DisableCORS         bool // disable CORS middleware
+	CORSOptions         *CORSOptions // nil = use defaults
 }
 
 // DefaultStack wires the recommended middleware order for aqm services.
@@ -28,11 +31,33 @@ func DefaultStack(opts StackOptions) []func(http.Handler) http.Handler {
 		Compress(opts.CompressLevel),
 		Recoverer(),
 		ErrorReporter(opts.Errors),
-		Timeout(opts.Timeout),
+	}
+
+	// Add timeout middleware unless explicitly disabled
+	if !opts.DisableTimeout {
+		timeout := opts.TimeoutDuration
+		if timeout == 0 {
+			timeout = 60 * time.Second
+		}
+		stack = append(stack, Timeout(timeout))
+	}
+
+	stack = append(stack,
 		RequestLogger(opts.Logger),
 		Metrics(opts.Metrics),
 		AllowContentType(opts.AllowedContentTypes...),
+	)
+
+	// Add CORS middleware unless explicitly disabled
+	if !opts.DisableCORS {
+		corsOpts := opts.CORSOptions
+		if corsOpts == nil {
+			defaultOpts := DefaultCORSOptions()
+			corsOpts = &defaultOpts
+		}
+		stack = append(stack, CORS(*corsOpts))
 	}
+
 	return stack
 }
 
@@ -60,9 +85,13 @@ func Recoverer() func(http.Handler) http.Handler {
 }
 
 // Timeout aborts requests that exceed the configured duration.
+// A duration of 0 means no timeout (infinite).
 func Timeout(duration time.Duration) func(http.Handler) http.Handler {
-	if duration <= 0 {
-		duration = 60 * time.Second
+	if duration == 0 {
+		// No timeout - return passthrough middleware
+		return func(next http.Handler) http.Handler {
+			return next
+		}
 	}
 	return chimiddleware.Timeout(duration)
 }

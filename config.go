@@ -231,6 +231,16 @@ func (p *Config) GetStringSlice(path string) ([]string, bool) {
 	}
 }
 
+// GetPort retrieves a port configuration and normalizes it, applying a default if not found.
+// The defaultPort should be in the format ":8080" or "8080".
+func (p *Config) GetPort(path string, defaultPort string) string {
+	port, ok := p.GetString(path)
+	if !ok {
+		port = ""
+	}
+	return NormalizePort(port, defaultPort)
+}
+
 func flattenInto(p *Config, prefix string, values map[string]any) {
 	for k, v := range values {
 		var path string

@@ -103,10 +103,7 @@ func WithHTTPServer(addrKey string, factories ...HTTPModuleFactory) Option {
 			}
 		}
 
-		addr, ok := ms.deps.Config.GetString(addrKey)
-		if !ok || addr == "" {
-			addr = ":8080"
-		}
+		addr := ms.deps.Config.GetPort(addrKey, ":8080")
 
 		server := &http.Server{
 			Addr:    addr,
