@@ -17,6 +17,10 @@ type User struct {
 	PasswordHash []byte
 	PasswordSalt []byte
 	MFASecretCT  []byte
+	PINCT        []byte
+	PINIV        []byte
+	PINTag       []byte
+	PINLookup    []byte
 	Status       UserStatus
 	CreatedAt    time.Time
 }

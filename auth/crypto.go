@@ -113,3 +113,54 @@ func DecryptEmail(encrypted *EncryptedData, key []byte) (string, error) {
 func GenerateEncryptionKey() []byte {
 	return GenerateRandomBytes(32)
 }
+
+// GeneratePIN generates a 6-character alphanumeric PIN (lowercase letters and digits)
+func GeneratePIN() string {
+	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
+	const pinLength = 6
+
+	pin := make([]byte, pinLength)
+	randomBytes := make([]byte, pinLength)
+
+	if _, err := rand.Read(randomBytes); err != nil {
+		// Fallback to a simpler approach if crypto/rand fails
+		panic("failed to generate random bytes for PIN")
+	}
+
+	for i := 0; i < pinLength; i++ {
+		pin[i] = charset[int(randomBytes[i])%len(charset)]
+	}
+
+	return string(pin)
+}
+
+// NormalizePIN normalizes a PIN to lowercase for case-insensitive comparison
+// PINs are always stored and compared in lowercase
+func NormalizePIN(pin string) string {
+	return strings.ToLower(strings.TrimSpace(pin))
+}
+
+// ComputePINLookupHash computes a lookup hash for PIN (similar to email lookup)
+// The PIN should be normalized before hashing
+func ComputePINLookupHash(pin string, key []byte) []byte {
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(pin))
+	return h.Sum(nil)
+}
+
+// GenerateSecurePassword generates a cryptographically secure random password
+func GenerateSecurePassword(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*()_+-="
+	password := make([]byte, length)
+	randomBytes := make([]byte, length)
+
+	if _, err := rand.Read(randomBytes); err != nil {
+		panic("failed to generate random bytes for password")
+	}
+
+	for i := 0; i < length; i++ {
+		password[i] = charset[int(randomBytes[i])%len(charset)]
+	}
+
+	return string(password)
+}
