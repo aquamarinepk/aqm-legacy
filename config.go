@@ -228,7 +228,47 @@ func (p *Config) GetStringSlice(path string) ([]string, bool) {
 		return parts, true
 	default:
 		return []string{fmt.Sprint(v)}, true
+ }
+}
+
+// GetStringOrDef retrieves the value as a string or returns def when not found.
+func (p *Config) GetStringOrDef(path string, def string) string {
+	if v, ok := p.GetString(path); ok {
+		return v
 	}
+	return def
+}
+
+// GetIntOrDef retrieves the value as an int or returns def when not found or on conversion error.
+func (p *Config) GetIntOrDef(path string, def int) int {
+	if v, ok, err := p.GetInt(path); ok && err == nil {
+		return v
+	}
+	return def
+}
+
+// GetFloat64OrDef retrieves the value as a float64 or returns def when not found or on conversion error.
+func (p *Config) GetFloat64OrDef(path string, def float64) float64 {
+	if v, ok, err := p.GetFloat64(path); ok && err == nil {
+		return v
+	}
+	return def
+}
+
+// GetDurationOrDef retrieves the value as a time.Duration or returns def when not found or on conversion error.
+func (p *Config) GetDurationOrDef(path string, def time.Duration) time.Duration {
+	if v, ok, err := p.GetDuration(path); ok && err == nil {
+		return v
+	}
+	return def
+}
+
+// GetStringSliceOrDef retrieves the value as a []string or returns def when not found.
+func (p *Config) GetStringSliceOrDef(path string, def []string) []string {
+	if v, ok := p.GetStringSlice(path); ok {
+		return v
+	}
+	return def
 }
 
 // GetPort retrieves a port configuration and normalizes it, applying a default if not found.
@@ -368,4 +408,46 @@ func mergeSegments(parts []string, idx int) []string {
 	merged = append(merged, parts[idx]+"_"+parts[idx+1])
 	merged = append(merged, parts[idx+2:]...)
 	return merged
+}
+
+
+// GetBool retrieves the value as a bool.
+func (p *Config) GetBool(path string) (bool, bool, error) {
+	raw, ok := p.Get(path)
+	if !ok {
+		return false, false, nil
+	}
+	switch v := raw.(type) {
+	case bool:
+		return v, true, nil
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+		return parsed, true, err
+	case int:
+		return v != 0, true, nil
+	case int64:
+		return v != 0, true, nil
+	case uint64:
+		return v != 0, true, nil
+	case float64:
+		return v != 0, true, nil
+	default:
+		return false, true, fmt.Errorf("config: cannot convert %T to bool", raw)
+	}
+}
+
+// GetBoolOrTrue retrieves the value as a bool or returns true when not found or on conversion error.
+func (p *Config) GetBoolOrTrue(path string) bool {
+	if v, ok, err := p.GetBool(path); ok && err == nil {
+		return v
+	}
+	return true
+}
+
+// GetBoolOrFalse retrieves the value as a bool or returns false when not found or on conversion error.
+func (p *Config) GetBoolOrFalse(path string) bool {
+	if v, ok, err := p.GetBool(path); ok && err == nil {
+		return v
+	}
+	return false
 }
