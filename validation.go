@@ -99,3 +99,14 @@ func MinValueInt(value, min int) bool {
 func MaxValueInt(value, max int) bool {
 	return value <= max
 }
+
+// IsInList checks if a value is present in a list of values.
+// Returns true if the value is found in the list.
+func IsInList[T comparable](value T, list []T) bool {
+	for _, item := range list {
+		if value == item {
+			return true
+		}
+	}
+	return false
+}
