@@ -158,7 +158,7 @@ func TestMaxValueInt(t *testing.T) {
 		{"equal to max", 5, 5, true},
 		{"less than max", 3, 5, true},
 		{"greater than max", 10, 5, false},
-		{"negative values", -10, -5, false},
+		{"negative values", -10, -5, true},
 		{"zero", 0, 0, true},
 	}
 

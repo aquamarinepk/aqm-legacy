@@ -250,3 +250,170 @@ func TestHasAllPermissions(t *testing.T) {
 		t.Errorf("HasAllPermissions() = %v, want false", allowed)
 	}
 }
+
+func TestHasAllPermissionsSuccess(t *testing.T) {
+	mockClient := &mockAuthzClient{
+		permissions: map[string]bool{
+			"user1:read:/api/todos":  true,
+			"user1:write:/api/todos": true,
+		},
+	}
+
+	helper := NewAuthzHelper(mockClient, 5*time.Minute)
+	ctx := context.Background()
+
+	permissions := []string{"read", "write"}
+	allowed, err := HasAllPermissions(ctx, helper, "user1", permissions, "/api/todos")
+	if err != nil {
+		t.Errorf("HasAllPermissions() error = %v", err)
+	}
+	if !allowed {
+		t.Errorf("HasAllPermissions() = %v, want true", allowed)
+	}
+}
+
+func TestHasAnyPermissionNone(t *testing.T) {
+	mockClient := &mockAuthzClient{
+		permissions: map[string]bool{
+			"user1:read:/api/todos":  false,
+			"user1:write:/api/todos": false,
+		},
+	}
+
+	helper := NewAuthzHelper(mockClient, 5*time.Minute)
+	ctx := context.Background()
+
+	permissions := []string{"read", "write"}
+	allowed, err := HasAnyPermission(ctx, helper, "user1", permissions, "/api/todos")
+	if err != nil {
+		t.Errorf("HasAnyPermission() error = %v", err)
+	}
+	if allowed {
+		t.Errorf("HasAnyPermission() = %v, want false", allowed)
+	}
+}
+
+func TestHasAnyPermissionError(t *testing.T) {
+	mockClient := &mockAuthzClient{shouldError: true}
+
+	helper := NewAuthzHelper(mockClient, 5*time.Minute)
+	ctx := context.Background()
+
+	permissions := []string{"read"}
+	_, err := HasAnyPermission(ctx, helper, "user1", permissions, "/api/todos")
+	if err == nil {
+		t.Error("HasAnyPermission() should return error")
+	}
+}
+
+func TestHasAllPermissionsError(t *testing.T) {
+	mockClient := &mockAuthzClient{shouldError: true}
+
+	helper := NewAuthzHelper(mockClient, 5*time.Minute)
+	ctx := context.Background()
+
+	permissions := []string{"read"}
+	_, err := HasAllPermissions(ctx, helper, "user1", permissions, "/api/todos")
+	if err == nil {
+		t.Error("HasAllPermissions() should return error")
+	}
+}
+
+func TestClearExpiredCache(t *testing.T) {
+	mockClient := &mockAuthzClient{
+		permissions: map[string]bool{
+			"user1:read:/api/todos": true,
+		},
+	}
+
+	helper := NewAuthzHelper(mockClient, 1*time.Millisecond)
+	ctx := context.Background()
+
+	// Populate cache
+	_, _ = helper.CheckPermission(ctx, "user1", "read", "/api/todos")
+
+	// Wait for expiration
+	time.Sleep(5 * time.Millisecond)
+
+	// Clear expired entries
+	helper.ClearExpiredCache()
+
+	// Next call should hit service again
+	_, _ = helper.CheckPermission(ctx, "user1", "read", "/api/todos")
+
+	if mockClient.callCount != 2 {
+		t.Errorf("Expected 2 service calls after ClearExpiredCache, got %d", mockClient.callCount)
+	}
+}
+
+func TestIsResourceOwner(t *testing.T) {
+	mockClient := &mockAuthzClient{
+		permissions: map[string]bool{
+			"user1:own:resource123": true,
+			"user2:own:resource123": false,
+		},
+	}
+
+	helper := NewAuthzHelper(mockClient, 5*time.Minute)
+	ctx := context.Background()
+
+	// User1 owns the resource
+	isOwner, err := IsResourceOwner(ctx, helper, "user1", "resource123")
+	if err != nil {
+		t.Errorf("IsResourceOwner() error = %v", err)
+	}
+	if !isOwner {
+		t.Error("IsResourceOwner() should return true for owner")
+	}
+
+	// User2 does not own the resource
+	isOwner, err = IsResourceOwner(ctx, helper, "user2", "resource123")
+	if err != nil {
+		t.Errorf("IsResourceOwner() error = %v", err)
+	}
+	if isOwner {
+		t.Error("IsResourceOwner() should return false for non-owner")
+	}
+}
+
+func TestCheckPermissionError(t *testing.T) {
+	mockClient := &mockAuthzClient{shouldError: true}
+
+	helper := NewAuthzHelper(mockClient, 5*time.Minute)
+	ctx := context.Background()
+
+	_, err := helper.CheckPermission(ctx, "user1", "read", "/api/todos")
+	if err == nil {
+		t.Error("CheckPermission() should return error when client fails")
+	}
+}
+
+func TestCheckMultiplePermissionsError(t *testing.T) {
+	mockClient := &mockAuthzClient{shouldError: true}
+
+	helper := NewAuthzHelper(mockClient, 5*time.Minute)
+	ctx := context.Background()
+
+	checks := []PermissionCheck{
+		{Permission: "read", Resource: "/api/todos"},
+	}
+
+	_, err := helper.CheckMultiplePermissions(ctx, "user1", checks)
+	if err == nil {
+		t.Error("CheckMultiplePermissions() should return error when client fails")
+	}
+}
+
+func TestPermissionCheckStruct(t *testing.T) {
+	check := PermissionCheck{
+		Permission: "read",
+		Resource:   "/api/todos",
+	}
+
+	if check.Permission != "read" {
+		t.Errorf("Permission = %s, want read", check.Permission)
+	}
+	if check.Resource != "/api/todos" {
+		t.Errorf("Resource = %s, want /api/todos", check.Resource)
+	}
+}

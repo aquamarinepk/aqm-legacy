@@ -1,0 +1,9 @@
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - revive
+    - gocritic
+
+run:
+  timeout: 5m

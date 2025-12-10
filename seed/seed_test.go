@@ -112,3 +112,201 @@ func TestApplyValidatesSeeds(t *testing.T) {
 		})
 	}
 }
+
+func TestApplyNilTracker(t *testing.T) {
+	seeds := []Seed{{ID: "test", Run: func(ctx context.Context) error { return nil }}}
+
+	err := Apply(context.Background(), nil, seeds, "app")
+	if err == nil {
+		t.Fatal("expected error for nil tracker")
+	}
+}
+
+func TestApplyTrackerHasRunError(t *testing.T) {
+	tracker := newFakeTracker()
+	tracker.errQuery = errors.New("query failed")
+
+	seeds := []Seed{{ID: "test", Run: func(ctx context.Context) error { return nil }}}
+
+	err := Apply(context.Background(), tracker, seeds, "app")
+	if err == nil {
+		t.Fatal("expected error from HasRun")
+	}
+}
+
+func TestApplyTrackerMarkRunError(t *testing.T) {
+	tracker := newFakeTracker()
+	tracker.errMark = errors.New("mark failed")
+
+	seeds := []Seed{{ID: "test", Run: func(ctx context.Context) error { return nil }}}
+
+	err := Apply(context.Background(), tracker, seeds, "app")
+	if err == nil {
+		t.Fatal("expected error from MarkRun")
+	}
+}
+
+func TestApplyContextCancelled(t *testing.T) {
+	tracker := newFakeTracker()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	seeds := []Seed{{ID: "test", Run: func(ctx context.Context) error { return nil }}}
+
+	err := Apply(ctx, tracker, seeds, "app")
+	if err == nil {
+		t.Fatal("expected context error")
+	}
+}
+
+func TestApplyEmptySeeds(t *testing.T) {
+	tracker := newFakeTracker()
+
+	err := Apply(context.Background(), tracker, []Seed{}, "app")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSeedStruct(t *testing.T) {
+	s := Seed{
+		ID:          "test-seed",
+		Description: "Test seed description",
+		Run:         func(ctx context.Context) error { return nil },
+	}
+
+	if s.ID != "test-seed" {
+		t.Errorf("ID = %s, want test-seed", s.ID)
+	}
+	if s.Description != "Test seed description" {
+		t.Errorf("Description = %s, want Test seed description", s.Description)
+	}
+	if s.Run == nil {
+		t.Error("Run should not be nil")
+	}
+}
+
+func TestRecordStruct(t *testing.T) {
+	r := Record{
+		ID:          "record-id",
+		Application: "test-app",
+		Description: "test description",
+	}
+
+	if r.ID != "record-id" {
+		t.Errorf("ID = %s, want record-id", r.ID)
+	}
+	if r.Application != "test-app" {
+		t.Errorf("Application = %s, want test-app", r.Application)
+	}
+}
+
+func TestWithCollectionName(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"normal name", "custom_seeds", "custom_seeds"},
+		{"with spaces", "  trimmed  ", "trimmed"},
+		{"empty string", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &mongoTrackerConfig{collectionName: "_seeds"}
+			opt := WithCollectionName(tt.input)
+			opt(cfg)
+
+			if tt.input == "" || tt.input == "  " {
+				// Empty or whitespace-only should not change default
+				if cfg.collectionName != "_seeds" {
+					t.Errorf("collectionName = %s, want _seeds", cfg.collectionName)
+				}
+			} else {
+				if cfg.collectionName != tt.expected {
+					t.Errorf("collectionName = %s, want %s", cfg.collectionName, tt.expected)
+				}
+			}
+		})
+	}
+}
+
+func TestMongoTrackerHasRunNilCollection(t *testing.T) {
+	tracker := &MongoTracker{collection: nil}
+
+	_, err := tracker.HasRun(context.Background(), "test")
+	if err == nil {
+		t.Fatal("expected error for nil collection")
+	}
+}
+
+func TestMongoTrackerHasRunNilTracker(t *testing.T) {
+	var tracker *MongoTracker
+
+	_, err := tracker.HasRun(context.Background(), "test")
+	if err == nil {
+		t.Fatal("expected error for nil tracker")
+	}
+}
+
+func TestMongoTrackerMarkRunNilCollection(t *testing.T) {
+	tracker := &MongoTracker{collection: nil}
+
+	err := tracker.MarkRun(context.Background(), Record{ID: "test"})
+	if err == nil {
+		t.Fatal("expected error for nil collection")
+	}
+}
+
+func TestMongoTrackerMarkRunNilTracker(t *testing.T) {
+	var tracker *MongoTracker
+
+	err := tracker.MarkRun(context.Background(), Record{ID: "test"})
+	if err == nil {
+		t.Fatal("expected error for nil tracker")
+	}
+}
+
+func TestMongoTrackerMarkRunEmptyID(t *testing.T) {
+	tracker := &MongoTracker{collection: nil}
+
+	err := tracker.MarkRun(context.Background(), Record{ID: ""})
+	if err == nil {
+		t.Fatal("expected error for empty ID")
+	}
+}
+
+func TestUpsertOnceNilCollection(t *testing.T) {
+	err := UpsertOnce(context.Background(), nil, map[string]string{"_id": "1"}, map[string]string{"name": "test"})
+	if err == nil {
+		t.Fatal("expected error for nil collection")
+	}
+}
+
+func TestUpsertOnceNilFilter(t *testing.T) {
+	// We can't create a real mongo.Collection without a connection,
+	// but the nil filter check happens first
+	err := UpsertOnce(context.Background(), nil, nil, map[string]string{"name": "test"})
+	if err == nil {
+		t.Fatal("expected error for nil filter")
+	}
+}
+
+func TestUpsertOnceNilDocument(t *testing.T) {
+	err := UpsertOnce(context.Background(), nil, map[string]string{"_id": "1"}, nil)
+	if err == nil {
+		t.Fatal("expected error for nil document")
+	}
+}
+
+func TestTrackerInterface(t *testing.T) {
+	var _ Tracker = &fakeTracker{}
+	var _ Tracker = &MongoTracker{}
+}
+
+func TestDefaultCollectionName(t *testing.T) {
+	if defaultCollectionName != "_seeds" {
+		t.Errorf("defaultCollectionName = %s, want _seeds", defaultCollectionName)
+	}
+}

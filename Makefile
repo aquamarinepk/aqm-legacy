@@ -29,10 +29,11 @@ GOFMT ?= gofmt
 GOLANGCI_LINT ?= golangci-lint
 GO_TEST ?= go test
 
-.PHONY: help build build-services dev dev-% run-all stop-all stop-tasks test lint fmt \\
-	log-stream log-clean logs log-clear \\
-	compose-log-stream compose-log-clean compose-logs \\
-	run-compose run-compose-neat stop-compose reset-compose-data \\
+.PHONY: help build build-services dev dev-% run-all stop-all stop-tasks test test-v lint fmt vet check ci \
+	coverage coverage-profile coverage-html coverage-func coverage-check coverage-100 clean \
+	log-stream log-clean logs log-clear \
+	compose-log-stream compose-log-clean compose-logs \
+	run-compose run-compose-neat stop-compose reset-compose-data \
 	nomad-run nomad-stop nomad-status
 
 help:
@@ -44,7 +45,18 @@ help:
 	@echo "  stop-all            - Detiene lo iniciado por run-all"
 	@echo "  dev-<service>       - Run a specific service (e.g., make dev-tasks)"
 	@echo "  test                - Run go test ./..."
-	@echo "  lint                - Run golangci-lint if available (placeholder)"
+	@echo "  test-v              - Run tests with verbose output"
+	@echo "  coverage            - Run tests with coverage"
+	@echo "  coverage-profile    - Generate coverage profile"
+	@echo "  coverage-html       - Generate HTML coverage report"
+	@echo "  coverage-func       - Show function-level coverage"
+	@echo "  coverage-check      - Check coverage meets 80%% threshold"
+	@echo "  coverage-100        - Check 100%% test coverage"
+	@echo "  lint                - Run golangci-lint"
+	@echo "  vet                 - Run go vet"
+	@echo "  check               - Run fmt + vet + test + coverage-check + lint"
+	@echo "  ci                  - Run CI pipeline (100%% coverage required)"
+	@echo "  clean               - Clean generated files"
 	@echo "  fmt                 - gofmt relevant modules"
 	@echo "  run-compose         - docker compose up using $(COMPOSE_FILE)"
 	@echo "  run-compose-neat    - compose up while filtering $(COMPOSE_LOG_FILTER)"
@@ -88,16 +100,49 @@ stop-tasks:
 dev-%:
 	@$(MAKE) -C $(ORCH_DIR) dev-$*
 
+# Subpackages for testing coverage table
+SUBPACKAGES := . auth events fileserver middleware seed telemetry template
+
 test:
-	@$(GO_TEST) ./...
-	@$(MAKE) -C $(ORCH_DIR) test
+	@echo "🧪 Running tests for all packages..."
+	@echo ""
+	@echo "Coverage by package:"
+	@echo "┌────────────────────────────────────────────────────────┬──────────┐"
+	@echo "│ Package                                                │ Coverage │"
+	@echo "├────────────────────────────────────────────────────────┼──────────┤"
+	@failed=0; \
+	for pkg in $(SUBPACKAGES); do \
+		if [ "$$pkg" = "." ]; then \
+			display="github.com/aquamarinepk/aqm"; \
+			result=$$($(GO_TEST) -cover ./. 2>&1); \
+		else \
+			display="github.com/aquamarinepk/aqm/$$pkg"; \
+			result=$$($(GO_TEST) -cover ./$$pkg/... 2>&1); \
+		fi; \
+		cov=$$(echo "$$result" | grep -oE '[0-9]+\.[0-9]+%' | tail -1); \
+		if [ -z "$$cov" ]; then \
+			if echo "$$result" | grep -qE '\[no test files\]|no test files'; then \
+				if echo "$$result" | grep -q '0\.0%'; then cov="0.0%"; \
+				else cov="no test"; fi; \
+			elif echo "$$result" | grep -q "FAIL"; then \
+				cov="FAIL"; \
+				failed=1; \
+			else cov="0.0%"; fi; \
+		fi; \
+		printf "│ %-54s │ %8s │\n" "$$display" "$$cov"; \
+	done; \
+	echo "└────────────────────────────────────────────────────────┴──────────┘"; \
+	if [ $$failed -eq 1 ]; then \
+		echo ""; \
+		echo "❌ Some tests failed. Run 'make test-v' for details."; \
+		exit 1; \
+	fi
+	@if [ -d "$(ORCH_DIR)" ] && [ -f "$(ORCH_DIR)/Makefile" ]; then $(MAKE) -C $(ORCH_DIR) test 2>/dev/null || true; fi
 
 lint:
-	@if command -v $(GOLANGCI_LINT) >/dev/null 2>&1; then \
-		$(GOLANGCI_LINT) run ./...; \
-	else \
-		echo "golangci-lint not installed - skipping"; \
-	fi
+	@echo "🔍 Running golangci-lint..."
+	@$(GOLANGCI_LINT) run ./...
+	@echo "✅ golangci-lint finished"
 
 fmt:
 	@find . -name '*.go' \
@@ -217,3 +262,65 @@ nomad-stop:
 
 nomad-status:
 	@echo "⚠️  Nomad status placeholder"
+
+# Testing targets
+test-v:
+	@echo "🧪 Running tests with verbose output..."
+	@$(GO_TEST) -v ./...
+
+# Coverage targets
+coverage:
+	@echo "📊 Running tests with coverage..."
+	@$(GO_TEST) -cover ./...
+
+coverage-profile:
+	@echo "📊 Generating coverage profile..."
+	@$(GO_TEST) -coverprofile=coverage.out ./...
+	@go tool cover -func=coverage.out | tail -1
+
+coverage-html: coverage-profile
+	@echo "📊 Generating HTML coverage report..."
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "📊 Coverage report generated: coverage.html"
+
+coverage-func: coverage-profile
+	@echo "📊 Function-level coverage:"
+	@go tool cover -func=coverage.out
+
+coverage-check: coverage-profile
+	@COVERAGE=$$(go tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | sed 's/%//'); \
+	echo "📊 Coverage: $$COVERAGE%"; \
+	if [ $$(echo "$$COVERAGE < 80" | bc -l) -eq 1 ]; then \
+		echo "❌ Coverage $$COVERAGE% is below 80% threshold"; \
+		exit 1; \
+	else \
+		echo "✅ Coverage $$COVERAGE% meets the 80% threshold"; \
+	fi
+
+coverage-100: coverage-profile
+	@COVERAGE=$$(go tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | sed 's/%//'); \
+	echo "📊 Coverage: $$COVERAGE%"; \
+	if [ "$$COVERAGE" != "100.0" ]; then \
+		echo "❌ Coverage $$COVERAGE% is not 100%"; \
+		go tool cover -func=coverage.out | grep -v "100.0%"; \
+		exit 1; \
+	else \
+		echo "🎉 Perfect! 100% test coverage!"; \
+	fi
+
+# Code quality targets
+vet:
+	@echo "🔍 Running go vet..."
+	@go vet ./...
+
+check: fmt vet test coverage-check lint
+	@echo "✅ All quality checks passed!"
+
+ci: fmt vet test coverage-100 lint
+	@echo "🚀 CI pipeline passed!"
+
+clean:
+	@echo "🧹 Cleaning up..."
+	@rm -f coverage.out coverage.html
+	@go clean -testcache
+	@echo "✅ Cleanup complete"

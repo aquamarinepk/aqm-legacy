@@ -550,3 +550,119 @@ func BenchmarkDecryptEmail(b *testing.B) {
 		DecryptEmail(encrypted, key)
 	}
 }
+
+func TestGeneratePIN(t *testing.T) {
+	pin1 := GeneratePIN()
+	pin2 := GeneratePIN()
+
+	if len(pin1) != 6 {
+		t.Errorf("GeneratePIN returned %d chars, want 6", len(pin1))
+	}
+
+	if len(pin2) != 6 {
+		t.Errorf("GeneratePIN returned %d chars, want 6", len(pin2))
+	}
+
+	if pin1 == pin2 {
+		t.Error("GeneratePIN should generate different PINs")
+	}
+
+	// Check that PIN only contains valid characters
+	validChars := "abcdefghijklmnopqrstuvwxyz0123456789"
+	for _, c := range pin1 {
+		if !bytes.ContainsRune([]byte(validChars), c) {
+			t.Errorf("GeneratePIN contains invalid character: %c", c)
+		}
+	}
+}
+
+func TestNormalizePIN(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"lowercase", "abc123", "abc123"},
+		{"uppercase", "ABC123", "abc123"},
+		{"mixed case", "AbC123", "abc123"},
+		{"with spaces", "  abc123  ", "abc123"},
+		{"empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := NormalizePIN(tt.input)
+			if result != tt.expected {
+				t.Errorf("NormalizePIN(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestComputePINLookupHash(t *testing.T) {
+	key := []byte("test-pin-lookup-key-32-bytes-!!")
+
+	pin := "abc123"
+	hash1 := ComputePINLookupHash(pin, key)
+	hash2 := ComputePINLookupHash(pin, key)
+
+	// Same PIN should produce same hash
+	if !bytes.Equal(hash1, hash2) {
+		t.Error("ComputePINLookupHash should be deterministic")
+	}
+
+	// Should be 32 bytes (SHA256)
+	if len(hash1) != 32 {
+		t.Errorf("ComputePINLookupHash returned %d bytes, want 32", len(hash1))
+	}
+
+	// Different PINs should produce different hashes
+	hash3 := ComputePINLookupHash("xyz789", key)
+	if bytes.Equal(hash1, hash3) {
+		t.Error("Different PINs should produce different hashes")
+	}
+}
+
+func TestGenerateSecurePassword(t *testing.T) {
+	tests := []struct {
+		name   string
+		length int
+	}{
+		{"8 chars", 8},
+		{"16 chars", 16},
+		{"32 chars", 32},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pwd1 := GenerateSecurePassword(tt.length)
+			pwd2 := GenerateSecurePassword(tt.length)
+
+			if len(pwd1) != tt.length {
+				t.Errorf("GenerateSecurePassword(%d) returned %d chars", tt.length, len(pwd1))
+			}
+
+			if pwd1 == pwd2 {
+				t.Error("GenerateSecurePassword should generate different passwords")
+			}
+		})
+	}
+}
+
+func TestEncryptedDataStruct(t *testing.T) {
+	data := EncryptedData{
+		Ciphertext: []byte("ciphertext"),
+		IV:         []byte("iv"),
+		Tag:        []byte("tag"),
+	}
+
+	if string(data.Ciphertext) != "ciphertext" {
+		t.Error("Ciphertext not set correctly")
+	}
+	if string(data.IV) != "iv" {
+		t.Error("IV not set correctly")
+	}
+	if string(data.Tag) != "tag" {
+		t.Error("Tag not set correctly")
+	}
+}

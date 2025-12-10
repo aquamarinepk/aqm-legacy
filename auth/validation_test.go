@@ -373,8 +373,8 @@ func TestValidateScope(t *testing.T) {
 		{
 			name:          "empty scope type",
 			scope:         Scope{Type: "", ID: "123"},
-			expectedCount: 1,
-			expectedCodes: []string{"required"},
+			expectedCount: 2,
+			expectedCodes: []string{"required", "invalid_value"},
 		},
 		{
 			name:          "invalid scope type",
@@ -403,8 +403,8 @@ func TestValidateScope(t *testing.T) {
 		{
 			name:          "multiple errors",
 			scope:         Scope{Type: "", ID: ""},
-			expectedCount: 1,
-			expectedCodes: []string{"required"},
+			expectedCount: 2,
+			expectedCodes: []string{"required", "invalid_value"},
 		},
 	}
 

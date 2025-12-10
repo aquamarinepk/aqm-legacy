@@ -87,7 +87,7 @@ func IsEmail(value string) bool {
 	if value == "" {
 		return true // Empty string is considered valid if not required
 	}
-	return regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$`).MatchString(value)
+	return regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`).MatchString(value)
 }
 
 // MinValueInt checks if an int value meets the minimum value requirement.
