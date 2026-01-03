@@ -1,7 +1,7 @@
 # Aquamarine
 
-[![Tests](https://github.com/aquamarinepk/aqm/actions/workflows/test.yml/badge.svg)](https://github.com/aquamarinepk/aqm/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/aquamarinepk/aqm/branch/main/graph/badge.svg)](https://codecov.io/gh/aquamarinepk/aqm)
+[![Tests](https://github.com/aquamarinepk/aqm-legacy/actions/workflows/test.yml/badge.svg)](https://github.com/aquamarinepk/aqm-legacy/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/aquamarinepk/aqm-legacy/branch/main/graph/badge.svg)](https://codecov.io/gh/aquamarinepk/aqm-legacy)
 
 **Another generator? From the same author?**
 Yes. Aquamarine started as a Go generator for monoliths. Early versions used embedding to reduce repetition. Embedding is idiomatic Go, but using it as the default made intent less clear and behavior harder to see. This iteration removes that opacity and adds microservice generation.
